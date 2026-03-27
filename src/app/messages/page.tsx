@@ -66,6 +66,7 @@ export default function MessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get-conversations', userId: uid }),
       });
+      if (res.status === 401) { router.push('/login'); return; }
       const data = await res.json();
       if (res.ok) setConversations(data.conversations || []);
     } catch { /* */ } finally { setLoading(false); }
@@ -198,9 +199,11 @@ export default function MessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'generate', userId }),
       });
+      if (res.status === 401) { router.push('/login'); return; }
       const data = await res.json();
       if (res.ok) setProviderCode(data.code);
-    } catch { /* */ } finally { setCodeLoading(false); }
+      else alert(data.error || 'Failed to generate code');
+    } catch { alert('Network error. Please try again.'); } finally { setCodeLoading(false); }
   };
 
   const copyCode = () => {

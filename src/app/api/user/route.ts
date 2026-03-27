@@ -1,5 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUserId, unauthorized } from '@/lib/session';
 
 const ALLOWED_FIELDS = ['name', 'email', 'age', 'height', 'weight', 'gender', 'activityLevel', 'goal', 'role', 'specialty', 'healthConditions', 'dietaryRestrictions'];
 const MAX_STRING = 500;
@@ -20,34 +21,41 @@ function sanitizeUser(user: { id: string; email: string; name: string; role: str
 
 // GET /api/user?id=xxx
 export async function GET(req: NextRequest) {
+  const sessionId = getSessionUserId(req);
+  if (!sessionId) return unauthorized();
+
   const id = req.nextUrl.searchParams.get('id');
   if (!id || typeof id !== 'string' || id.length > 100) {
-    return Response.json({ error: 'Invalid user id' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
   }
+  if (id !== sessionId) return unauthorized();
 
   try {
     const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) return Response.json({ error: 'User not found' }, { status: 404 });
-    return Response.json({ user: sanitizeUser(user) });
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json({ user: sanitizeUser(user) });
   } catch (err) {
     console.error('[user:GET]', err instanceof Error ? err.message : 'Unknown error');
-    return Response.json({ error: 'Failed to fetch user' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 });
   }
 }
 
-// PUT /api/user — update user profile (whitelist fields, no mass assignment)
+// PUT /api/user — update user profile
 export async function PUT(req: NextRequest) {
+  const sessionId = getSessionUserId(req);
+  if (!sessionId) return unauthorized();
+
   try {
     let data;
     try { data = await req.json(); } catch {
-      return Response.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
     const { id } = data;
     if (!id || typeof id !== 'string') {
-      return Response.json({ error: 'Invalid user id' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
     }
+    if (id !== sessionId) return unauthorized();
 
-    // Whitelist only allowed fields
     const updateData: Record<string, unknown> = {};
     for (const key of ALLOWED_FIELDS) {
       if (key in data && data[key] !== undefined) {
@@ -62,43 +70,43 @@ export async function PUT(req: NextRequest) {
         }
       }
     }
-
-    // Prevent password field from being updated via this endpoint
     delete (updateData as Record<string, unknown>)['password'];
 
-    // Check email uniqueness if email is being changed
     if (updateData.email && typeof updateData.email === 'string') {
       const emailTaken = await prisma.user.findFirst({
         where: { email: updateData.email as string, id: { not: id } },
       });
       if (emailTaken) {
-        return Response.json({ error: 'Email already in use' }, { status: 409 });
+        return NextResponse.json({ error: 'Email already in use' }, { status: 409 });
       }
     }
 
     const user = await prisma.user.update({ where: { id }, data: updateData });
-    return Response.json({ user: sanitizeUser(user) });
+    return NextResponse.json({ user: sanitizeUser(user) });
   } catch (err) {
     console.error('[user:PUT]', err instanceof Error ? err.message : 'Unknown error');
-    return Response.json({ error: 'Update failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 }
 
 // DELETE /api/user?id=xxx
 export async function DELETE(req: NextRequest) {
+  const sessionId = getSessionUserId(req);
+  if (!sessionId) return unauthorized();
+
   const id = req.nextUrl.searchParams.get('id');
   if (!id || typeof id !== 'string') {
-    return Response.json({ error: 'Invalid user id' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
   }
+  if (id !== sessionId) return unauthorized();
 
   try {
     const existing = await prisma.user.findUnique({ where: { id } });
-    if (!existing) return Response.json({ error: 'User not found' }, { status: 404 });
-
+    if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     await prisma.user.delete({ where: { id } });
-    return Response.json({ success: true });
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[user:DELETE]', err instanceof Error ? err.message : 'Unknown error');
-    return Response.json({ error: 'Delete failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Delete failed' }, { status: 500 });
   }
 }

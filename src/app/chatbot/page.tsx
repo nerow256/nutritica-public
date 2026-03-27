@@ -33,6 +33,10 @@ function formatSize(bytes: number): string {
   return gb >= 1 ? `${gb.toFixed(1)}GB` : `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
 }
 
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function renderMarkdown(text: string) {
   // Simple markdown: bold, italic, code, headers, lists
   const lines = text.split('\n');
@@ -40,7 +44,7 @@ function renderMarkdown(text: string) {
   let inList = false;
 
   for (const line of lines) {
-    let processed = line
+    let processed = escapeHtml(line)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`(.+?)`/g, '<code>$1</code>');

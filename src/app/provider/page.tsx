@@ -159,6 +159,7 @@ export default function ProviderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get-patients', doctorId: docId }),
       });
+      if (res.status === 401) { window.location.href = '/login'; return; }
       const data = await res.json();
       if (res.ok) setSavedPatients(data.patients || []);
     } catch { /* */ } finally { setPatientsLoading(false); }

@@ -81,6 +81,11 @@ export async function dbRegister(email: string, password: string, name: string, 
 
 export async function dbGetUser(id: string): Promise<DbUser> {
   const res = await fetch(`/api/user?id=${id}`);
+  if (res.status === 401) {
+    clearSession();
+    if (typeof window !== 'undefined') window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error);
   return data.user;
@@ -242,6 +247,9 @@ export function setSession(userId: string): void {
 export function clearSession(): void {
   localStorage.removeItem('dhc_user_id');
   localStorage.removeItem('dhc_logged_in');
+  localStorage.removeItem('dhc_user_role');
+  // Clear the httpOnly session cookie via the logout API
+  fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) }).catch(() => { /* best-effort */ });
 }
 
 export function isLoggedIn(): boolean {

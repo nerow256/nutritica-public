@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUserId, unauthorized } from '@/lib/session';
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -222,10 +223,13 @@ async function streamOllama(
 
 // ── POST /api/chat ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const sessionId = getSessionUserId(req);
+  if (!sessionId) return unauthorized();
+
   try {
     let body;
     try { body = await req.json(); } catch {
-      return Response.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
     const { messages, model, images } = body;
 

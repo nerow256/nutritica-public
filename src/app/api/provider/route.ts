@@ -1,5 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUserId, unauthorized } from '@/lib/session';
 import crypto from 'crypto';
 
 const MAX_STRING = 500;
@@ -25,21 +26,25 @@ function sanitizeId(val: unknown): string | null {
 
 // POST /api/provider — generate a share code, validate one, save patient, or send message
 export async function POST(req: NextRequest) {
+  const sessionId = getSessionUserId(req);
+  if (!sessionId) return unauthorized();
+
   try {
     let body;
     try { body = await req.json(); } catch {
-      return Response.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
     const { action } = body;
 
     if (!action || typeof action !== 'string' || !VALID_ACTIONS.includes(action)) {
-      return Response.json({ error: 'Invalid action' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
     // ── Generate access code (patient side) ──
     if (action === 'generate') {
       const userId = sanitizeId(body.userId);
-      if (!userId) return Response.json({ error: 'Invalid userId' }, { status: 400 });
+      if (!userId) return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+      if (userId !== sessionId) return unauthorized();
 
       const shareCode = generateCode();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -52,14 +57,14 @@ export async function POST(req: NextRequest) {
         }),
       ]);
 
-      return Response.json({ code: shareCode, expiresAt: expiresAt.toISOString() });
+      return NextResponse.json({ code: shareCode, expiresAt: expiresAt.toISOString() });
     }
 
-    // ── Validate access code (doctor side) ──
+    // ── Validate access code (doctor side) — sessionId is the doctor ──
     if (action === 'validate') {
       const code = body.code;
       if (!code || typeof code !== 'string' || code.length > 20) {
-        return Response.json({ error: 'Invalid code' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid code' }, { status: 400 });
       }
 
       const access = await prisma.providerAccess.findUnique({
@@ -75,11 +80,11 @@ export async function POST(req: NextRequest) {
       });
 
       if (!access) {
-        return Response.json({ error: 'Invalid access code' }, { status: 404 });
+        return NextResponse.json({ error: 'Invalid access code' }, { status: 404 });
       }
 
       if (new Date() > access.expiresAt) {
-        return Response.json({ error: 'Access code has expired' }, { status: 410 });
+        return NextResponse.json({ error: 'Access code has expired' }, { status: 410 });
       }
 
       const user = access.user;
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest) {
       try { healthConditions = JSON.parse(user.healthConditions); } catch { /* */ }
       try { dietaryRestrictions = JSON.parse(user.dietaryRestrictions); } catch { /* */ }
 
-      return Response.json({
+      return NextResponse.json({
         patientId: user.id,
         patient: {
           id: user.id,
@@ -117,31 +122,34 @@ export async function POST(req: NextRequest) {
     if (action === 'save-patient') {
       const doctorId = sanitizeId(body.doctorId);
       const patientId = sanitizeId(body.patientId);
-      if (!doctorId || !patientId) return Response.json({ error: 'Invalid doctorId or patientId' }, { status: 400 });
+      if (!doctorId || !patientId) return NextResponse.json({ error: 'Invalid doctorId or patientId' }, { status: 400 });
+      if (doctorId !== sessionId) return unauthorized();
 
       const existing = await prisma.doctorPatient.findUnique({
         where: { doctorId_patientId: { doctorId, patientId } },
       });
-      if (existing) return Response.json({ ok: true, message: 'Already saved' });
+      if (existing) return NextResponse.json({ ok: true, message: 'Already saved' });
 
       await prisma.doctorPatient.create({ data: { doctorId, patientId } });
-      return Response.json({ ok: true });
+      return NextResponse.json({ ok: true });
     }
 
     // ── Remove patient (doctor side) ──
     if (action === 'remove-patient') {
       const doctorId = sanitizeId(body.doctorId);
       const patientId = sanitizeId(body.patientId);
-      if (!doctorId || !patientId) return Response.json({ error: 'Invalid doctorId or patientId' }, { status: 400 });
+      if (!doctorId || !patientId) return NextResponse.json({ error: 'Invalid doctorId or patientId' }, { status: 400 });
+      if (doctorId !== sessionId) return unauthorized();
 
       await prisma.doctorPatient.deleteMany({ where: { doctorId, patientId } });
-      return Response.json({ ok: true });
+      return NextResponse.json({ ok: true });
     }
 
     // ── Get saved patients list (doctor side) ──
     if (action === 'get-patients') {
       const doctorId = sanitizeId(body.doctorId);
-      if (!doctorId) return Response.json({ error: 'Invalid doctorId' }, { status: 400 });
+      if (!doctorId) return NextResponse.json({ error: 'Invalid doctorId' }, { status: 400 });
+      if (doctorId !== sessionId) return unauthorized();
 
       const relations = await prisma.doctorPatient.findMany({
         where: { doctorId },
@@ -149,7 +157,7 @@ export async function POST(req: NextRequest) {
         orderBy: { addedAt: 'desc' },
       });
 
-      return Response.json({
+      return NextResponse.json({
         patients: relations.map(r => ({
           id: r.patient.id,
           name: r.patient.name,
@@ -167,13 +175,14 @@ export async function POST(req: NextRequest) {
     if (action === 'get-patient-data') {
       const doctorId = sanitizeId(body.doctorId);
       const patientId = sanitizeId(body.patientId);
-      if (!doctorId || !patientId) return Response.json({ error: 'Invalid doctorId or patientId' }, { status: 400 });
+      if (!doctorId || !patientId) return NextResponse.json({ error: 'Invalid doctorId or patientId' }, { status: 400 });
+      if (doctorId !== sessionId) return unauthorized();
 
       // Verify doctor has this patient saved
       const relation = await prisma.doctorPatient.findUnique({
         where: { doctorId_patientId: { doctorId, patientId } },
       });
-      if (!relation) return Response.json({ error: 'Patient not found in your list' }, { status: 403 });
+      if (!relation) return NextResponse.json({ error: 'Patient not found in your list' }, { status: 403 });
 
       const user = await prisma.user.findUnique({
         where: { id: patientId },
@@ -182,14 +191,14 @@ export async function POST(req: NextRequest) {
           exerciseLogs: { orderBy: { date: 'desc' }, take: 100 },
         },
       });
-      if (!user) return Response.json({ error: 'Patient not found' }, { status: 404 });
+      if (!user) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
 
       let hc: string[] = [];
       let dr: string[] = [];
       try { hc = JSON.parse(user.healthConditions); } catch { /* */ }
       try { dr = JSON.parse(user.dietaryRestrictions); } catch { /* */ }
 
-      return Response.json({
+      return NextResponse.json({
         patient: {
           id: user.id, name: user.name, age: user.age, height: user.height, weight: user.weight,
           gender: user.gender, activityLevel: user.activityLevel, goal: user.goal,
@@ -216,21 +225,23 @@ export async function POST(req: NextRequest) {
         ? body.imageUrl.slice(0, MAX_IMAGE_SIZE) : '';
 
       if (!senderId || !receiverId || (!content && !imageUrl)) {
-        return Response.json({ error: 'Invalid senderId, receiverId, or content' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid senderId, receiverId, or content' }, { status: 400 });
       }
+      if (senderId !== sessionId) return unauthorized();
 
       const msg = await prisma.doctorMessage.create({
         data: { senderId, receiverId, content, imageUrl },
       });
 
-      return Response.json({ message: { id: msg.id, senderId: msg.senderId, receiverId: msg.receiverId, content: msg.content, imageUrl: msg.imageUrl, createdAt: msg.createdAt.toISOString() } });
+      return NextResponse.json({ message: { id: msg.id, senderId: msg.senderId, receiverId: msg.receiverId, content: msg.content, imageUrl: msg.imageUrl, createdAt: msg.createdAt.toISOString() } });
     }
 
     // ── Get messages between two users ──
     if (action === 'get-messages') {
       const userId = sanitizeId(body.userId);
       const otherUserId = sanitizeId(body.otherUserId);
-      if (!userId || !otherUserId) return Response.json({ error: 'Invalid userId or otherUserId' }, { status: 400 });
+      if (!userId || !otherUserId) return NextResponse.json({ error: 'Invalid userId or otherUserId' }, { status: 400 });
+      if (userId !== sessionId) return unauthorized();
 
       const messages = await prisma.doctorMessage.findMany({
         where: {
@@ -243,7 +254,7 @@ export async function POST(req: NextRequest) {
         take: 200,
       });
 
-      return Response.json({
+      return NextResponse.json({
         messages: messages.map(m => ({
           id: m.id, senderId: m.senderId, receiverId: m.receiverId,
           content: m.content, imageUrl: m.imageUrl || '', createdAt: m.createdAt.toISOString(),
@@ -254,7 +265,8 @@ export async function POST(req: NextRequest) {
     // ── Get conversations for a user (patient side — see which doctors messaged them) ──
     if (action === 'get-conversations') {
       const userId = sanitizeId(body.userId);
-      if (!userId) return Response.json({ error: 'Invalid userId' }, { status: 400 });
+      if (!userId) return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+      if (userId !== sessionId) return unauthorized();
 
       // Find all unique users who have exchanged messages with this user (2 queries)
       const [sent, received] = await Promise.all([
@@ -271,7 +283,7 @@ export async function POST(req: NextRequest) {
       ]);
 
       const otherIds = [...new Set([...sent.map(s => s.receiverId), ...received.map(r => r.senderId)])];
-      if (otherIds.length === 0) return Response.json({ conversations: [] });
+      if (otherIds.length === 0) return NextResponse.json({ conversations: [] });
 
       // Batch: fetch users + all relevant messages in parallel (3 queries total, not N+1)
       const [users, allMessages, unreadCounts] = await Promise.all([
@@ -328,19 +340,22 @@ export async function POST(req: NextRequest) {
 
       conversations.sort((a, b) => (b.lastMessageAt || '').localeCompare(a.lastMessageAt || ''));
 
-      return Response.json({ conversations });
+      return NextResponse.json({ conversations });
     }
 
     // ── Search patients by name or email (doctor side) ──
     if (action === 'search-patients') {
       const doctorId = sanitizeId(body.doctorId);
+      if (!doctorId) return NextResponse.json({ error: 'Invalid doctorId' }, { status: 400 });
+      if (doctorId !== sessionId) return unauthorized();
+
       const query = typeof body.query === 'string' ? body.query.trim().slice(0, MAX_STRING) : '';
-      if (!query || query.length < 2) return Response.json({ patients: [] });
+      if (!query || query.length < 2) return NextResponse.json({ patients: [] });
 
       const patients = await prisma.user.findMany({
         where: {
           role: 'patient',
-          id: { not: doctorId || '' },
+          id: { not: doctorId },
           OR: [
             { name: { contains: query } },
             { email: { contains: query } },
@@ -350,27 +365,29 @@ export async function POST(req: NextRequest) {
         take: 10,
       });
 
-      return Response.json({ patients });
+      return NextResponse.json({ patients });
     }
 
     // ── Mark messages as read ──
     if (action === 'mark-read') {
       const userId = sanitizeId(body.userId);
       const senderId = sanitizeId(body.senderId);
-      if (!userId || !senderId) return Response.json({ error: 'Invalid userId or senderId' }, { status: 400 });
+      if (!userId || !senderId) return NextResponse.json({ error: 'Invalid userId or senderId' }, { status: 400 });
+      if (userId !== sessionId) return unauthorized();
 
       await prisma.doctorMessage.updateMany({
         where: { senderId, receiverId: userId, read: false },
         data: { read: true },
       });
 
-      return Response.json({ ok: true });
+      return NextResponse.json({ ok: true });
     }
 
     // ── Get unread message counts per sender (for doctor home page badges) ──
     if (action === 'get-unread-counts') {
       const userId = sanitizeId(body.userId);
-      if (!userId) return Response.json({ error: 'Invalid userId' }, { status: 400 });
+      if (!userId) return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+      if (userId !== sessionId) return unauthorized();
 
       const counts = await prisma.doctorMessage.groupBy({
         by: ['senderId'],
@@ -383,12 +400,12 @@ export async function POST(req: NextRequest) {
         unreadCounts[g.senderId] = g._count.id;
       }
 
-      return Response.json({ unreadCounts });
+      return NextResponse.json({ unreadCounts });
     }
 
-    return Response.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (err) {
     console.error('[provider]', err instanceof Error ? err.message : 'Unknown error');
-    return Response.json({ error: 'Provider API error' }, { status: 500 });
+    return NextResponse.json({ error: 'Provider API error' }, { status: 500 });
   }
 }

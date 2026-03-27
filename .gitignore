@@ -137,3 +137,20 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+
+# Local dev database
+prisma/dev.db
+prisma/*.db
+
+# Editor config
+.vscode/
+
+# Claude Code
+.claude/
+
+# Prisma generated client
+src/generated/
+
+# Next.js env file
+next-env.d.ts
