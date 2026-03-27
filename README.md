@@ -1,6 +1,6 @@
-# Diet Health Companion
+# Nutritica
 
-A smart nutrition and health tracking platform that combines food logging, exercise tracking, biomarker monitoring, and AI-powered dietary advice into one unified application.
+Nutritica is a full-stack health and nutrition companion that brings together food logging, exercise tracking, biomarker monitoring, and AI-powered dietary advice in one unified app. It supports both patients and healthcare providers — patients track their daily health data while doctors can access authorized patient records and exchange messages through a secure portal. The AI chatbot runs locally via Ollama or through Google Gemini, and the app ships as both a web app and a native desktop installer via Electron.
 
 ## Features
 
@@ -17,7 +17,7 @@ A smart nutrition and health tracking platform that combines food logging, exerc
 - Daily exercise summary
 
 ### AI Chatbot
-- Powered by Ollama (local LLM inference)
+- Powered by Ollama (local LLM inference) with Google Gemini (gemini-2.0-flash) as an alternative and fallback
 - Streaming responses with markdown formatting
 - Food photo recognition via vision models
 - Quick prompt templates for nutrition and fitness advice
@@ -36,6 +36,7 @@ A smart nutrition and health tracking platform that combines food logging, exerc
 - Read-only access to nutrition, exercise, and biomarker history
 - CSV export of biomarker data
 - No login required for providers — code-based access only
+- In-app messaging between doctors and patients
 
 ### Multi-Language Support
 - 8 languages: English, Spanish, French, German, Arabic, Chinese, Japanese, Russian
@@ -52,13 +53,13 @@ A smart nutrition and health tracking platform that combines food logging, exerc
 
 ## Tech Stack
 
-| Layer       | Technology                              |
+| Layer       | Technology                             |
 |-------------|----------------------------------------|
 | Frontend    | React 19, Next.js 16, TypeScript 5     |
 | Styling     | Tailwind CSS 4, Material Design 3      |
 | Backend     | Next.js App Router API Routes          |
-| Database    | SQLite via Prisma 6 ORM               |
-| AI          | Ollama (local LLM, e.g. qwen3.5:4b)   |
+| Database    | SQLite via Prisma 6 ORM                |
+| AI          | Ollama (local LLM, e.g. gemma3:4b)     |
 | Charts      | Recharts 3                             |
 | Desktop     | Electron 41                            |
 | Icons       | Lucide React                           |
@@ -66,20 +67,20 @@ A smart nutrition and health tracking platform that combines food logging, exerc
 ## System Architecture
 
 ```
-┌───────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────┐
 │              CLIENT (Browser / Electron)           │
 │                                                    │
 │   Dashboard  Diary  Chatbot  Devices  Provider     │
 │                                                    │
-│   ThemeProvider · LanguageProvider · BottomNav      │
+│   ThemeProvider · LanguageProvider · BottomNav     │
 └──────────────────────┬─────────────────────────────┘
                        │ HTTP / SSE
 ┌──────────────────────▼─────────────────────────────┐
-│              NEXT.JS SERVER (App Router)            │
+│              NEXT.JS SERVER (App Router)           │
 │                                                    │
 │   /api/auth    /api/chat       /api/food-log       │
 │   /api/user    /api/settings   /api/exercise-log   │
-│                /api/provider   /api/chat-messages   │
+│                /api/provider   /api/chat-messages  │
 └───────┬────────────┬──────────────┬────────────────┘
         │            │              │
    ┌────▼────┐  ┌────▼─────┐  ┌────▼────┐
@@ -97,6 +98,8 @@ A smart nutrition and health tracking platform that combines food logging, exerc
 - **ChatMessage** — conversation history with AI assistant
 - **UserSettings** — theme and notification preferences
 - **ProviderAccess** — time-limited access codes for healthcare providers
+- **DoctorPatient** — doctor-patient relationship records
+- **DoctorMessage** — messages exchanged between doctors and patients
 
 ## Prerequisites
 
@@ -136,7 +139,7 @@ npm run build
 npx electron-builder --win
 ```
 
-The installer will be generated in the `dist/` folder.
+The installer will be generated in the `dist-electron/` folder.
 
 ## Project Structure
 
@@ -157,22 +160,27 @@ src/
 │   ├── register/       # Registration with role selection
 │   ├── settings/       # App settings
 │   ├── help/           # FAQ
-│   └── privacy/        # Data management
+│   ├── messages/       # Doctor-patient messaging
+│   ├── privacy/        # Data management
+│   └── terms/          # Terms of service
 ├── components/         # Shared UI components
 ├── lib/
 │   ├── biomarkers.ts   # Biomarker simulation engine
 │   ├── calculations.ts # BMR, TDEE, BMI calculations
 │   ├── db.ts           # Database abstraction layer
 │   ├── exercises.ts    # Exercise database
+│   ├── food-translations.ts  # Food name translations
 │   ├── foods.ts        # Food database
 │   ├── i18n.ts         # Translations (8 languages)
-│   └── prisma.ts       # Prisma client
+│   ├── prisma.ts       # Prisma client
+│   ├── session.ts      # Session management
+│   ├── types.ts        # Shared TypeScript types
+│   └── utils.ts        # Utility helpers
 └── generated/prisma/   # Generated Prisma client
 ```
 
 ## Known Limitations
 
 - Biomarker data is simulated (no real Bluetooth device integration)
-- Passwords are stored in plain text (would use bcrypt in production)
 - Ollama must be installed locally for AI features
 - No push notifications (in-app alerts only)
