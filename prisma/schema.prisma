@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String   @id @default(uuid())
+  email               String   @unique
+  password            String
+  name                String
+  role                String   @default("patient")
+  specialty           String   @default("")
+  age                 Int      @default(0)
+  height              Int      @default(0)
+  weight              Int      @default(0)
+  gender              String   @default("male")
+  activityLevel       String   @default("moderate")
+  goal                String   @default("maintain")
+  healthConditions    String   @default("[]")
+  dietaryRestrictions String   @default("[]")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  foodLogs       FoodLog[]
+  exerciseLogs   ExerciseLog[]
+  chatMessages   ChatMessage[]
+  settings       UserSettings?
+  providerAccess ProviderAccess[]
+  doctorPatients DoctorPatient[] @relation("Doctor")
+  patientOf      DoctorPatient[] @relation("Patient")
+  sentMessages   DoctorMessage[] @relation("Sender")
+  receivedMessages DoctorMessage[] @relation("Receiver")
+}
+
+model FoodLog {
+  id       String @id @default(uuid())
+  date     String
+  mealType String
+  foodName String
+  amount   Float
+  calories Float
+  protein  Float
+  carbs    Float
+  fat      Float
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+model ExerciseLog {
+  id             String @id @default(uuid())
+  date           String
+  exerciseName   String
+  duration       Float
+  caloriesBurned Float
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+model ChatMessage {
+  id        String @id @default(uuid())
+  role      String
+  content   String
+  timestamp String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model UserSettings {
+  id            String  @id @default(uuid())
+  darkMode      Boolean @default(false)
+  notifications Boolean @default(true)
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProviderAccess {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([code])
+  @@index([userId])
+}
+
+model DoctorPatient {
+  id        String   @id @default(uuid())
+  doctorId  String
+  doctor    User     @relation("Doctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   User     @relation("Patient", fields: [patientId], references: [id], onDelete: Cascade)
+  addedAt   DateTime @default(now())
+
+  @@unique([doctorId, patientId])
+  @@index([doctorId])
+  @@index([patientId])
+}
+
+model DoctorMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  imageUrl   String   @default("")
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, senderId])
+}

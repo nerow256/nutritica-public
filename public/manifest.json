@@ -1,0 +1,53 @@
+{
+  "name": "Nutritica",
+  "short_name": "Nutritica",
+  "description": "Your personal nutrition & health tracker with AI-powered advice",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#2e7d32",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["health", "fitness", "food"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Log Food",
+      "short_name": "Food",
+      "url": "/diary",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Chat",
+      "short_name": "Chat",
+      "url": "/chatbot",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
