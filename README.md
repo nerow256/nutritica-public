@@ -39,8 +39,7 @@ Nutritica is a full-stack health and nutrition companion that brings together fo
 - In-app messaging between doctors and patients
 
 ### Multi-Language Support
-- 8 languages: English, Spanish, French, German, Arabic, Chinese, Japanese, Russian
-- Full RTL support for Arabic
+- 2 languages: English, Russian
 - Language switcher in settings
 
 ### Themes
