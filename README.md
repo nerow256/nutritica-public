@@ -57,8 +57,8 @@ Nutritica is a full-stack health and nutrition companion that brings together fo
 | Frontend    | React 19, Next.js 16, TypeScript 5     |
 | Styling     | Tailwind CSS 4, Material Design 3      |
 | Backend     | Next.js App Router API Routes          |
-| Database    | SQLite via Prisma 6 ORM                |
-| AI          | Ollama (local LLM, e.g. gemma3:4b)     |
+| Database    | PostgreSQL via Prisma 6 ORM            |
+| AI          | Ollama (local LLM) + Google Gemini     |
 | Charts      | Recharts 3                             |
 | Desktop     | Electron 41                            |
 | Icons       | Lucide React                           |
@@ -83,9 +83,9 @@ Nutritica is a full-stack health and nutrition companion that brings together fo
 └───────┬────────────┬──────────────┬────────────────┘
         │            │              │
    ┌────▼────┐  ┌────▼─────┐  ┌────▼────┐
-   │ SQLite  │  │  Ollama  │  │ SQLite  │
-   │(Prisma) │  │ (Local   │  │(Prisma) │
-   │         │  │   LLM)   │  │         │
+   │Postgres │  │  Ollama  │  │Postgres │
+   │(Prisma) │  │  /Gemini │  │(Prisma) │
+   │         │  │          │  │         │
    └─────────┘  └──────────┘  └─────────┘
 ```
 
@@ -103,7 +103,8 @@ Nutritica is a full-stack health and nutrition companion that brings together fo
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+
-- [Ollama](https://ollama.ai/) (for AI chatbot features)
+- A PostgreSQL database (e.g. [Railway](https://railway.app), [Render](https://render.com), or local)
+- [Ollama](https://ollama.ai/) (optional — for local AI inference)
 
 ## Getting Started
 
@@ -112,24 +113,30 @@ Nutritica is a full-stack health and nutrition companion that brings together fo
    npm install
    ```
 
-2. **Set up the database:**
+2. **Configure environment variables** — create a `.env` file in the project root:
+   ```env
+   DATABASE_URL=postgresql://user:password@host:5432/nutritica
+   GEMINI_API_KEY=your_gemini_api_key   # optional
+   ```
+
+3. **Set up the database:**
    ```bash
    npx prisma db push
    npx prisma generate
    ```
 
-3. **Start Ollama** (in a separate terminal):
+4. **Start Ollama** (in a separate terminal, optional):
    ```bash
    ollama serve
-   ollama pull qwen3.5:4b
+   ollama pull gemma3:4b
    ```
 
-4. **Run the development server:**
+5. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000)
+6. Open [http://localhost:3000](http://localhost:3000)
 
 ## Build for Desktop (Electron)
 
